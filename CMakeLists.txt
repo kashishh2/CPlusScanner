@@ -3,6 +3,12 @@ project(CPlusScanner VERSION 0.1.0 LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
+
+# Use optimized builds by default with single-configuration generators.
+# Multi-configuration generators (Visual Studio, Xcode) select via --config.
+if(NOT CMAKE_CONFIGURATION_TYPES AND NOT CMAKE_BUILD_TYPE)
+  set(CMAKE_BUILD_TYPE Release CACHE STRING "Build type" FORCE)
+endif()
 add_executable(cisscanner-agent agent/main.cpp)
 target_include_directories(cisscanner-agent PRIVATE include)
 add_executable(cisscanner-controller controller/main.cpp)
