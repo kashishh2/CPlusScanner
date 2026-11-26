@@ -26,3 +26,9 @@ endif()
 enable_testing()
 add_test(NAME agent_ping COMMAND cisscanner-agent --ping --request-id cmake-test)
 add_test(NAME agent_system_info COMMAND cisscanner-agent --system-info --request-id cmake-test)
+
+# Negative-path smoke tests: invalid input must fail cleanly rather than crash.
+add_test(NAME agent_rejects_invalid_arguments COMMAND cisscanner-agent --unsupported)
+set_tests_properties(agent_rejects_invalid_arguments PROPERTIES WILL_FAIL TRUE)
+add_test(NAME controller_rejects_missing_arguments COMMAND cisscanner-controller)
+set_tests_properties(controller_rejects_missing_arguments PROPERTIES WILL_FAIL TRUE)
