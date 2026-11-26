@@ -4,6 +4,7 @@
 #include <iostream>
 #include <random>
 #include <string>
+#include <thread>
 #include <vector>
 
 #ifdef _WIN32
@@ -329,7 +330,7 @@ bool valid_ping_response(const std::string& response,
 }
 } // namespace
 
-int main(int argc, char** argv) {
+int run_controller(int argc, char** argv) {
     Options options;
     if (!parse_arguments(argc, argv, options)) {
         std::cerr
@@ -383,3 +384,44 @@ int main(int argc, char** argv) {
               << request_id << ".\n";
     return 0;
 }
+
+#ifdef _WIN32
+namespace {
+std::string wide_to_utf8(const wchar_t* value) {
+    const int length = WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS,
+                                           value, -1, nullptr, 0, nullptr, nullptr);
+    if (length <= 0) return {};
+    std::string result(static_cast<std::size_t>(length), '\0');
+    if (WideCharToMultiByte(CP_UTF8, WC_ERR_INVALID_CHARS, value, -1,
+                            result.data(), length, nullptr, nullptr) <= 0) {
+        return {};
+    }
+    result.pop_back();
+    return result;
+}
+} // namespace
+
+int wmain(int argc, wchar_t** argv) {
+    std::vector<std::string> utf8_arguments;
+    std::vector<char*> argument_pointers;
+    utf8_arguments.reserve(static_cast<std::size_t>(argc));
+    argument_pointers.reserve(static_cast<std::size_t>(argc));
+
+    for (int i = 0; i < argc; ++i) {
+        std::string converted = wide_to_utf8(argv[i]);
+        if (converted.empty()) {
+            std::cerr << "Could not convert a command-line argument to UTF-8.\n";
+            return 2;
+        }
+        utf8_arguments.push_back(std::move(converted));
+    }
+    for (auto& argument : utf8_arguments) {
+        argument_pointers.push_back(argument.data());
+    }
+    return run_controller(argc, argument_pointers.data());
+}
+#else
+int main(int argc, char** argv) {
+    return run_controller(argc, argv);
+}
+#endif
