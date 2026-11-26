@@ -1,6 +1,8 @@
 #include "protocol.hpp"
 
+#include <exception>
 #include <iostream>
+#include <new>
 #include <string>
 #ifdef _WIN32
 #define NOMINMAX
@@ -82,6 +84,7 @@ bool valid_id(const std::string& value) {
 } // namespace
 
 int main(int argc, char* argv[]) {
+    try {
     std::string operation;
     std::string request_id;
     bool request_id_seen = false;
@@ -131,6 +134,20 @@ int main(int argc, char* argv[]) {
                   << cisscanner::json_escape(host_name()) << "\"";
     }
 
-    std::cout << "}\n";
+    std::cout << "}\\n";
+    if (!std::cout) {
+        std::cerr << "Failed to write the agent response to standard output.\\n";
+        return 4;
+    }
     return 0;
+    } catch (const std::bad_alloc&) {
+        std::cerr << "Agent error: insufficient memory.\\n";
+        return 70;
+    } catch (const std::exception& error) {
+        std::cerr << "Agent error: " << error.what() << "\\n";
+        return 70;
+    } catch (...) {
+        std::cerr << "Agent error: unknown exception.\\n";
+        return 70;
+    }
 }
