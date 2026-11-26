@@ -1,27 +1,34 @@
 #pragma once
+
 #include <string>
 #include <string_view>
+
 namespace cisscanner {
 inline constexpr const char* kProtocolVersion = "1";
 inline constexpr const char* kAgentVersion = "0.1.0";
-inline std::string json_escape(std::string_view s) {
-  std::string o;
-  for (unsigned char c : s) {
-    switch(c) {
-      case '"': o += "\\\""; break;
-      case '\\': o += "\\\\"; break;
-      case '\b': o += "\\b"; break;
-      case '\f': o += "\\f"; break;
-      case '\n': o += "\\n"; break;
-      case '\r': o += "\\r"; break;
-      case '\t': o += "\\t"; break;
-      default:
-        if(c < 0x20) {
-          static constexpr char h[]="0123456789abcdef";
-          o += "\\u00"; o += h[c>>4]; o += h[c&15];
-        } else o += static_cast<char>(c);
+
+inline std::string json_escape(std::string_view value) {
+    std::string escaped;
+    for (const unsigned char character : value) {
+        switch (character) {
+            case '"': escaped += "\\\""; break;
+            case '\\': escaped += "\\\\"; break;
+            case '\b': escaped += "\\b"; break;
+            case '\f': escaped += "\\f"; break;
+            case '\n': escaped += "\\n"; break;
+            case '\r': escaped += "\\r"; break;
+            case '\t': escaped += "\\t"; break;
+            default:
+                if (character < 0x20) {
+                    static constexpr char hex[] = "0123456789abcdef";
+                    escaped += "\\u00";
+                    escaped += hex[character >> 4];
+                    escaped += hex[character & 0x0f];
+                } else {
+                    escaped += static_cast<char>(character);
+                }
+        }
     }
-  }
-  return o;
+    return escaped;
 }
-}
+} // namespace cisscanner
