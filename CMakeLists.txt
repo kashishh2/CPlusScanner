@@ -4,6 +4,8 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+find_package(Threads REQUIRED)
+
 # Use optimized builds by default with single-configuration generators.
 # Multi-configuration generators (Visual Studio, Xcode) select via --config.
 if(NOT CMAKE_CONFIGURATION_TYPES AND NOT CMAKE_BUILD_TYPE)
@@ -13,6 +15,7 @@ add_executable(cisscanner-agent agent/main.cpp)
 target_include_directories(cisscanner-agent PRIVATE include)
 add_executable(cisscanner-controller controller/main.cpp)
 target_include_directories(cisscanner-controller PRIVATE include)
+target_link_libraries(cisscanner-controller PRIVATE Threads::Threads)
 if(MSVC)
   target_compile_options(cisscanner-agent PRIVATE /W4 /permissive-)
   target_compile_options(cisscanner-controller PRIVATE /W4 /permissive-)
