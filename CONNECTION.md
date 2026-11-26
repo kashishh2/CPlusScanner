@@ -70,6 +70,15 @@ The agent's `--system-info` operation also returns OS family, architecture, and 
 - GitHub Actions has successfully configured, built, and run the agent smoke tests on native Windows, Linux, and macOS runners. This validates compilation and local agent behavior on all three platforms; a real SSH session to each target OS still requires separate VM testing.
 - The controller intentionally accepts only the agent's exact protocol-v1 ping JSON line on standard output. Avoid shell startup scripts that print banners or other text to standard output for the SSH account.
 
+## Failure handling and diagnostics
+
+- The controller and agent have top-level exception boundaries. Allocation failures and unexpected standard or unknown exceptions produce a diagnostic and a non-zero exit instead of an uncaught termination.
+- The controller bounds the agent response to 64 KiB, enforces an execution deadline, checks process exit status, and rejects an SSH process that exits without closing its output pipe.
+- On Windows, process wait failures are distinguished from timeouts; the output-reader thread is shut down safely if a pipe handle is unexpectedly retained.
+- SSH diagnostics are emitted by the local OpenSSH client to standard error. CPlusScanner does not currently parse every OpenSSH message into a distinct machine-readable error category; failures are reported as connection/process failures with troubleshooting guidance.
+- The agent checks that its JSON response was written successfully. A failed stdout write returns exit code 4; unexpected exceptions return exit code 70.
+- These safeguards reduce hangs and uncontrolled failures, but they do not guarantee recovery from power loss, OS termination, hardware faults, or every SSH/network failure.
+
 ## Controller exit codes
 
 | Code | Meaning |
@@ -78,3 +87,4 @@ The agent's `--system-info` operation also returns OS family, architecture, and 
 | 1 | SSH/process/connection failure |
 | 2 | Invalid controller arguments or agent invocation |
 | 3 | Agent response did not match the expected protocol |
+| 70 | Unexpected controller or agent exception |
