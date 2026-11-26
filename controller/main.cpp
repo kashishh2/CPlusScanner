@@ -2,6 +2,9 @@
 
 #include <chrono>
 #include <iostream>
+#include <limits>
+#include <algorithm>
+#include <cstdint>
 #include <random>
 #include <string>
 #include <thread>
@@ -15,6 +18,7 @@
 #include <cerrno>
 #include <csignal>
 #include <fcntl.h>
+#include <poll.h>
 #include <sys/types.h>
 #include <sys/wait.h>
 #include <unistd.h>
@@ -31,7 +35,7 @@ struct Options {
 };
 
 bool valid_host(const std::string& value) {
-    if (value.empty()) return false;
+    if (value.empty() || value.front() == '-') return false;
     for (const unsigned char c : value) {
         if (!((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
               (c >= '0' && c <= '9') || c == '.' || c == '-' ||
@@ -43,7 +47,7 @@ bool valid_host(const std::string& value) {
 }
 
 bool valid_user(const std::string& value) {
-    if (value.empty()) return false;
+    if (value.empty() || value.front() == '-') return false;
     for (const unsigned char c : value) {
         if (!((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
               (c >= '0' && c <= '9') || c == '.' || c == '_' ||
@@ -59,8 +63,9 @@ bool parse_integer(const std::string& value, int& result) {
     int parsed = 0;
     for (const unsigned char c : value) {
         if (c < '0' || c > '9') return false;
-        if (parsed > 1000000) return false;
-        parsed = parsed * 10 + (c - '0');
+        const int digit = c - '0';
+        if (parsed > (std::numeric_limits<int>::max() - digit) / 10) return false;
+        parsed = parsed * 10 + digit;
     }
     result = parsed;
     return true;
@@ -236,12 +241,25 @@ bool run_ssh(const std::vector<std::string>& arguments, int timeout_seconds,
 bool run_ssh(const std::vector<std::string>& arguments, int timeout_seconds,
              std::string& output) {
     int pipe_fds[2];
-    if (pipe(pipe_fds) != 0) return false;
+    if (pipe(pipe_fds) != 0) {
+        std::cerr << "Could not create SSH output pipe.\n";
+        return false;
+    }
+
+    // Prepare argv before fork: only async-signal-safe work is done in the child.
+    std::vector<char*> child_arguments;
+    child_arguments.reserve(arguments.size() + 2);
+    child_arguments.push_back(const_cast<char*>("ssh"));
+    for (const auto& argument : arguments) {
+        child_arguments.push_back(const_cast<char*>(argument.c_str()));
+    }
+    child_arguments.push_back(nullptr);
 
     const pid_t child = fork();
     if (child < 0) {
         close(pipe_fds[0]);
         close(pipe_fds[1]);
+        std::cerr << "Could not start SSH process.\n";
         return false;
     }
 
@@ -249,13 +267,6 @@ bool run_ssh(const std::vector<std::string>& arguments, int timeout_seconds,
         if (dup2(pipe_fds[1], STDOUT_FILENO) < 0) _exit(126);
         close(pipe_fds[0]);
         close(pipe_fds[1]);
-
-        std::vector<char*> child_arguments;
-        child_arguments.push_back(const_cast<char*>("ssh"));
-        for (const auto& argument : arguments) {
-            child_arguments.push_back(const_cast<char*>(argument.c_str()));
-        }
-        child_arguments.push_back(nullptr);
         execvp("ssh", child_arguments.data());
         _exit(127);
     }
@@ -265,59 +276,93 @@ bool run_ssh(const std::vector<std::string>& arguments, int timeout_seconds,
     if (flags < 0 || fcntl(pipe_fds[0], F_SETFL, flags | O_NONBLOCK) < 0) {
         close(pipe_fds[0]);
         kill(child, SIGKILL);
-        waitpid(child, nullptr, 0);
+        while (waitpid(child, nullptr, 0) < 0 && errno == EINTR) {}
+        std::cerr << "Could not configure SSH output pipe.\n";
         return false;
     }
 
     constexpr std::size_t kMaxResponseBytes = 65536;
     bool output_too_large = false;
-    auto deadline = std::chrono::steady_clock::now() +
-                    std::chrono::seconds(timeout_seconds);
-    int child_status = 0;
+    bool pipe_open = true;
     bool child_finished = false;
+    int child_status = 0;
     char buffer[4096];
+    const auto deadline = std::chrono::steady_clock::now() +
+                          std::chrono::seconds(timeout_seconds);
 
-    while (std::chrono::steady_clock::now() < deadline) {
-        const ssize_t bytes_read = read(pipe_fds[0], buffer, sizeof(buffer));
-        if (bytes_read > 0) {
-            if (output.size() + static_cast<std::size_t>(bytes_read) <= kMaxResponseBytes) {
-                output.append(buffer, static_cast<std::size_t>(bytes_read));
-            } else {
-                output_too_large = true;
+    while (pipe_open || !child_finished) {
+        const auto now = std::chrono::steady_clock::now();
+        if (now >= deadline) break;
+
+        if (pipe_open) {
+            const auto remaining =
+                std::chrono::duration_cast<std::chrono::milliseconds>(deadline - now);
+            const int wait_ms = static_cast<int>(
+                std::min<std::int64_t>(remaining.count(), 100));
+            pollfd descriptor{pipe_fds[0], POLLIN | POLLHUP, 0};
+            int poll_result;
+            do {
+                poll_result = poll(&descriptor, 1, wait_ms);
+            } while (poll_result < 0 && errno == EINTR);
+
+            if (poll_result < 0) break;
+            if (poll_result > 0 && (descriptor.revents & (POLLIN | POLLHUP | POLLERR))) {
+                for (;;) {
+                    const ssize_t count = read(pipe_fds[0], buffer, sizeof(buffer));
+                    if (count > 0) {
+                        const auto size = static_cast<std::size_t>(count);
+                        if (output.size() + size <= kMaxResponseBytes) {
+                            output.append(buffer, size);
+                        } else {
+                            output_too_large = true;
+                        }
+                        continue;
+                    }
+                    if (count == 0) pipe_open = false;
+                    else if (errno != EAGAIN && errno != EWOULDBLOCK && errno != EINTR)
+                        pipe_open = false;
+                    break;
+                }
             }
+        } else if (!child_finished) {
+            // Avoid spinning while waiting for the process after stdout has closed.
+            poll(nullptr, 0, 10);
         }
 
-        const pid_t waited = waitpid(child, &child_status, WNOHANG);
-        if (waited == child) {
-            child_finished = true;
-            break;
+        if (!child_finished) {
+            const pid_t waited = waitpid(child, &child_status, WNOHANG);
+            if (waited == child) child_finished = true;
+            else if (waited < 0 && errno != EINTR) break;
         }
-        if (waited < 0 && errno != EINTR) break;
-        if (bytes_read < 0 && errno != EAGAIN && errno != EWOULDBLOCK &&
-            errno != EINTR) {
-            break;
-        }
-        if (bytes_read <= 0) usleep(10000);
     }
 
     if (!child_finished) {
         kill(child, SIGKILL);
-        waitpid(child, &child_status, 0);
-        std::cerr << "SSH timed out or could not be monitored.\n";
+        while (waitpid(child, &child_status, 0) < 0 && errno == EINTR) {}
+        std::cerr << "SSH operation timed out or the process could not be monitored.\n";
     }
 
-    ssize_t bytes_read = 0;
-    while ((bytes_read = read(pipe_fds[0], buffer, sizeof(buffer))) > 0) {
-        if (output.size() + static_cast<std::size_t>(bytes_read) <= kMaxResponseBytes) {
-            output.append(buffer, static_cast<std::size_t>(bytes_read));
-        } else {
-            output_too_large = true;
+    // Drain any bytes already buffered before closing the pipe.
+    if (pipe_open) {
+        for (;;) {
+            const ssize_t count = read(pipe_fds[0], buffer, sizeof(buffer));
+            if (count > 0) {
+                const auto size = static_cast<std::size_t>(count);
+                if (output.size() + size <= kMaxResponseBytes) output.append(buffer, size);
+                else output_too_large = true;
+            } else {
+                break;
+            }
         }
     }
     close(pipe_fds[0]);
 
+    if (output_too_large) {
+        std::cerr << "SSH response exceeded the 64 KiB safety limit.\n";
+        return false;
+    }
     return child_finished && WIFEXITED(child_status) &&
-           WEXITSTATUS(child_status) == 0 && !output_too_large;
+           WEXITSTATUS(child_status) == 0;
 }
 #endif
 
@@ -354,6 +399,14 @@ int run_controller(int argc, char** argv) {
         "-o", "KbdInteractiveAuthentication=no",
         "-o", "PreferredAuthentications=publickey",
         "-o", "ConnectTimeout=" + std::to_string(options.timeout_seconds),
+        "-o", "ConnectionAttempts=1",
+        "-o", "ServerAliveInterval=5",
+        "-o", "ServerAliveCountMax=2",
+        "-o", "TCPKeepAlive=yes",
+        "-o", "RequestTTY=no",
+        "-o", "ClearAllForwardings=yes",
+        "-o", "ControlMaster=no",
+        "-o", "ControlPath=none",
     };
 
     if (!options.known_hosts_file.empty()) {
