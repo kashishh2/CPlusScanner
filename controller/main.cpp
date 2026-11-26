@@ -324,7 +324,7 @@ bool run_ssh(const std::vector<std::string>& arguments, int timeout_seconds,
 bool valid_ping_response(const std::string& response,
                          const std::string& request_id) {
     const std::string expected =
-        "{\"protocol_version\":\"" + cisscanner::kProtocolVersion +
+        std::string("{\"protocol_version\":\"") + cisscanner::kProtocolVersion +
         "\",\"agent_version\":\"" + cisscanner::kAgentVersion +
         "\",\"status\":\"ok\",\"operation\":\"ping\","
         "\"request_id\":\"" + request_id + "\"}";
