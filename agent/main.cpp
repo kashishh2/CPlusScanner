@@ -38,7 +38,7 @@ std::string arch_name() {
 std::string host_name() {
 #ifdef _WIN32
     wchar_t wide_name[MAX_COMPUTERNAME_LENGTH + 1]{};
-    DWORD length = static_cast<DWORD>(std::size(wide_name));
+    DWORD length = MAX_COMPUTERNAME_LENGTH + 1;
     if (!GetComputerNameW(wide_name, &length)) {
         return "unknown";
     }
