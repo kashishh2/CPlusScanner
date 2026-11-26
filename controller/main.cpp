@@ -1,10 +1,10 @@
 #include "protocol.hpp"
 
 #include <chrono>
-#include <iostream>
-#include <limits>
 #include <algorithm>
 #include <cstdint>
+#include <iostream>
+#include <limits>
 #include <random>
 #include <string>
 #include <thread>
@@ -305,7 +305,7 @@ bool run_ssh(const std::vector<std::string>& arguments, int timeout_seconds,
                 poll_result = poll(&descriptor, 1, wait_ms);
             } while (poll_result < 0 && errno == EINTR);
 
-            if (poll_result < 0) break;
+            if (poll_result < 0 || (descriptor.revents & POLLNVAL)) break;
             if (poll_result > 0 && (descriptor.revents & (POLLIN | POLLHUP | POLLERR))) {
                 for (;;) {
                     const ssize_t count = read(pipe_fds[0], buffer, sizeof(buffer));
