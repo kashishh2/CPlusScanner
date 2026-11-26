@@ -214,7 +214,7 @@ bool run_ssh(const std::vector<std::string>& arguments, int timeout_seconds,
 
     const DWORD wait_result = WaitForSingleObject(
         process.hProcess, static_cast<DWORD>(timeout_seconds * 1000));
-    if (wait_result == WAIT_TIMEOUT) {
+    if (wait_result != WAIT_OBJECT_0) {
         TerminateProcess(process.hProcess, 124);
         WaitForSingleObject(process.hProcess, INFINITE);
     }
@@ -324,9 +324,10 @@ bool run_ssh(const std::vector<std::string>& arguments, int timeout_seconds,
 bool valid_ping_response(const std::string& response,
                          const std::string& request_id) {
     const std::string expected =
-        "{\"protocol_version\":\"1\",\"agent_version\":\"0.1.0\","
-        "\"status\":\"ok\",\"operation\":\"ping\",\"request_id\":\"" +
-        request_id + "\"}";
+        "{\"protocol_version\":\"" + cisscanner::kProtocolVersion +
+        "\",\"agent_version\":\"" + cisscanner::kAgentVersion +
+        "\",\"status\":\"ok\",\"operation\":\"ping\","
+        "\"request_id\":\"" + request_id + "\"}";
     return response == expected + "\n" || response == expected + "\r\n";
 }
 } // namespace
@@ -347,6 +348,7 @@ int run_controller(int argc, char** argv) {
         "-i", options.identity_file,
         "-p", std::to_string(options.port),
         "-o", "BatchMode=yes",
+        "-o", "IdentitiesOnly=yes",
         "-o", "StrictHostKeyChecking=yes",
         "-o", "PasswordAuthentication=no",
         "-o", "KbdInteractiveAuthentication=no",
