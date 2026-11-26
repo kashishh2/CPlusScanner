@@ -239,6 +239,8 @@ bool run_ssh(const std::vector<std::string>& arguments, int timeout_seconds,
     const BOOL got_exit_code = GetExitCodeProcess(process.hProcess, &exit_code);
     CloseHandle(process.hThread);
     CloseHandle(process.hProcess);
+    // Cancel a blocked read if an unexpected descendant retained the pipe.
+    CancelSynchronousIo(static_cast<HANDLE>(reader.native_handle()));
     reader.join();
     CloseHandle(read_pipe);
 
