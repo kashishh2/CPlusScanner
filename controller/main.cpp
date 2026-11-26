@@ -3,7 +3,9 @@
 #include <chrono>
 #include <algorithm>
 #include <cstdint>
+#include <exception>
 #include <iostream>
+#include <new>
 #include <limits>
 #include <random>
 #include <string>
@@ -353,11 +355,11 @@ bool run_ssh(const std::vector<std::string>& arguments, int timeout_seconds,
     if (!child_finished) {
         kill(child, SIGKILL);
         while (waitpid(child, &child_status, 0) < 0 && errno == EINTR) {}
-        std::cerr << (timed_out ? "SSH operation timed out.\\n"
-                                : "Could not monitor SSH process; terminated it.\\n");
+        std::cerr << (timed_out ? "SSH operation timed out.\n"
+                                : "Could not monitor SSH process; terminated it.\n");
     } else if (pipe_open) {
         timed_out = true;
-        std::cerr << "SSH exited but its output pipe did not close before the deadline.\\n";
+        std::cerr << "SSH exited but its output pipe did not close before the deadline.\n";
     }
 
     // Drain any bytes already buffered before closing the pipe.
@@ -495,13 +497,13 @@ int wmain(int argc, wchar_t** argv) {
     }
     return run_controller(argc, argument_pointers.data());
     } catch (const std::bad_alloc&) {
-        std::cerr << "Fatal error: insufficient memory.\\n";
+        std::cerr << "Fatal error: insufficient memory.\n";
         return 70;
     } catch (const std::exception& error) {
-        std::cerr << "Fatal controller error: " << error.what() << "\\n";
+        std::cerr << "Fatal controller error: " << error.what() << "\n";
         return 70;
     } catch (...) {
-        std::cerr << "Fatal controller error: unknown exception.\\n";
+        std::cerr << "Fatal controller error: unknown exception.\n";
         return 70;
     }
 }
@@ -510,13 +512,13 @@ int main(int argc, char** argv) {
     try {
         return run_controller(argc, argv);
     } catch (const std::bad_alloc&) {
-        std::cerr << "Fatal error: insufficient memory.\\n";
+        std::cerr << "Fatal error: insufficient memory.\n";
         return 70;
     } catch (const std::exception& error) {
-        std::cerr << "Fatal controller error: " << error.what() << "\\n";
+        std::cerr << "Fatal controller error: " << error.what() << "\n";
         return 70;
     } catch (...) {
-        std::cerr << "Fatal controller error: unknown exception.\\n";
+        std::cerr << "Fatal controller error: unknown exception.\n";
         return 70;
     }
 }
