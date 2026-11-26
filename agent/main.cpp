@@ -51,19 +51,19 @@ int main(int argc,char* argv[]) {
  std::string op,id;
  for(int i=1;i<argc;++i) {
   std::string a=argv[i];
-  if(a=="--ping"||a=="--system-info") { if(!op.empty()){std::cerr<<"Only one operation allowed.\\n";return 2;} op=a; }
-  else if(a=="--request-id"&&i+1<argc) { id=argv[++i]; if(!valid_id(id)){std::cerr<<"Invalid request ID.\\n";return 2;} }
-  else {std::cerr<<"Unsupported argument: "<<a<<"\\n";return 2;}
+  if(a=="--ping"||a=="--system-info") { if(!op.empty()){std::cerr<<"Only one operation allowed.\n";return 2;} op=a; }
+  else if(a=="--request-id"&&i+1<argc) { id=argv[++i]; if(!valid_id(id)){std::cerr<<"Invalid request ID.\n";return 2;} }
+  else {std::cerr<<"Unsupported argument: "<<a<<"\n";return 2;}
  }
- if(op.empty()){std::cerr<<"Usage: cisscanner-agent (--ping|--system-info) [--request-id ID]\\n";return 2;}
- std::cout<<"{\\"protocol_version\\":\\""<<cisscanner::kProtocolVersion
-          <<"\\",\\"agent_version\\":\\""<<cisscanner::kAgentVersion
-          <<"\\",\\"status\\":\\"ok\\",\\"operation\\":\\""
-          <<(op=="--ping"?"ping":"system_info")<<"\\",\\"request_id\\":\\""
-          <<cisscanner::json_escape(id)<<"\\"";
+ if(op.empty()){std::cerr<<"Usage: cisscanner-agent (--ping|--system-info) [--request-id ID]\n";return 2;}
+ std::cout<<"{\"protocol_version\":\""<<cisscanner::kProtocolVersion
+          <<"\",\"agent_version\":\""<<cisscanner::kAgentVersion
+          <<"\",\"status\":\"ok\",\"operation\":\""
+          <<(op=="--ping"?"ping":"system_info")<<"\",\"request_id\":\""
+          <<cisscanner::json_escape(id)<<"\"";
  if(op=="--system-info")
-  std::cout<<",\\"system\\":\\""<<os_name()<<"\\",\\"architecture\\":\\""<<arch_name()
-           <<"\\",\\"hostname\\":\\""<<cisscanner::json_escape(host_name())<<"\\"";
+  std::cout<<",\"system\":\""<<os_name()<<"\",\"architecture\":\""<<arch_name()
+           <<"\",\"hostname\":\""<<cisscanner::json_escape(host_name())<<"\"";
  std::cout<<"}"<<std::endl;
  return 0;
 }
