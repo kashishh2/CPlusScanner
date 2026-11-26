@@ -42,7 +42,7 @@ The agent is launched per request and exits immediately. It requires no listenin
 cisscanner-controller --host 192.0.2.10 --user scanner --identity ~/.ssh/cisscanner_ed25519
 ```
 
-Optional arguments: `--port 22`, `--known-hosts <file>`, and `--timeout 15` (seconds, 1–300). The controller enforces batch public-key authentication and `StrictHostKeyChecking=yes`. An unknown or changed host key fails safely. The agent must be named `cisscanner-agent` and available in the SSH account's `PATH`.
+Optional arguments: `--port 22`, `--known-hosts <file>`, and `--timeout 15` (seconds, 1–300). The controller enforces batch public-key authentication and `StrictHostKeyChecking=yes`. It also disables SSH connection multiplexing and forwarding, uses one connection attempt, and enables server-alive probes to detect stalled sessions. An unknown or changed host key fails safely. The agent must be named `cisscanner-agent` and available in the SSH account's `PATH`.
 
 Local agent smoke tests:
 
