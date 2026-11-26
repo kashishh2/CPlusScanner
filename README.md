@@ -18,7 +18,7 @@ The initial C++17 implementation has source support for Windows, Linux, and macO
 - `include/protocol.hpp` — shared protocol constants and JSON escaping.
 - `CMakeLists.txt` — CMake build for both executables.
 - [Part 1 connection and full platform setup guide](CONNECTION.md) — exact host/controller and target/agent prerequisites and commands for macOS, Windows, and Debian Linux.
-- [Captain's Log — Part 1 handoff](CAPTAINS_LOG_PART_1.md) — project state, commits, validation, decisions, known limitations, and the next-chat starting point.
+- [Captain's Log — Part 1 handoff](activity-logs/CAPTAINS_LOG_2026-11-26_2301_IST_PART_1.md) — project state, commits, validation, decisions, known limitations, and the next-chat starting point.
 
 **No CIS assessment is implemented yet.** The controller checks connectivity and agent/protocol compatibility only. The agent performs no privileged operations and makes no configuration changes.
 
@@ -72,6 +72,7 @@ agent/                 Endpoint agent source
 controller/            Host controller source
 include/               Shared protocol definitions
 CIS standards/         Benchmark metadata and official references
+activity-logs/         Timestamped Captain's Logs and session handoffs
 CMakeLists.txt         Cross-platform build configuration
 CONNECTION.md          Part 1 setup and protocol guide
 ```
