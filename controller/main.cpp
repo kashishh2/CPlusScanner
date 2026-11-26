@@ -172,7 +172,7 @@ bool run_ssh(const std::vector<std::string>& arguments, int timeout_seconds,
     for (const auto& argument : arguments) {
         const std::wstring wide_argument = utf8_to_wide(argument);
         if (wide_argument.empty()) {
-            std::cerr << "Invalid UTF-8 in SSH argument.\\n";
+            std::cerr << "Invalid UTF-8 in SSH argument.\n";
             return false;
         }
         command += L" " + quote_windows_argument(wide_argument);
