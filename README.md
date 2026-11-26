@@ -58,7 +58,7 @@ Benchmark metadata and official CIS references are maintained under [CIS standar
 ## Roadmap
 
 - **Part 0 — Scope and benchmark catalogue:** documented.
-- **Part 1 — Host-to-VM connection:** initial controller, agent, and protocol implemented; native Windows validation remains outstanding.
+- **Part 1 — Host-to-VM connection:** initial controller, agent, and protocol implemented; CI build and agent smoke tests pass on Windows, Linux, and macOS. End-to-end SSH testing against real VMs remains outstanding.
 - **Part 2 — System inventory:** controller requests and validates OS/version/architecture details from the agent.
 - **Part 3 — Assessment framework:** define versioned machine-readable rules and evidence schema from appropriately licensed CIS material.
 - **Part 4 — Platform collectors:** implement and test read-only checks against lab VMs.
