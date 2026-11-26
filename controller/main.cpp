@@ -164,6 +164,10 @@ std::wstring quote_windows_argument(const std::wstring& argument) {
 
 bool run_ssh(const std::vector<std::string>& arguments, int timeout_seconds,
              std::string& output) {
+    constexpr std::size_t kMaxResponseBytes = 65536;
+    output.clear();
+    output.reserve(kMaxResponseBytes);
+
     SECURITY_ATTRIBUTES security{sizeof(security), nullptr, TRUE};
     HANDLE read_pipe = nullptr;
     HANDLE write_pipe = nullptr;
@@ -204,7 +208,6 @@ bool run_ssh(const std::vector<std::string>& arguments, int timeout_seconds,
         return false;
     }
 
-    constexpr std::size_t kMaxResponseBytes = 65536;
     bool output_too_large = false;
     std::thread reader;
     try {
@@ -257,6 +260,10 @@ bool run_ssh(const std::vector<std::string>& arguments, int timeout_seconds,
 #else
 bool run_ssh(const std::vector<std::string>& arguments, int timeout_seconds,
              std::string& output) {
+    constexpr std::size_t kMaxResponseBytes = 65536;
+    output.clear();
+    output.reserve(kMaxResponseBytes);
+
     int pipe_fds[2];
     if (pipe(pipe_fds) != 0) {
         std::cerr << "Could not create SSH output pipe.\n";
@@ -298,7 +305,6 @@ bool run_ssh(const std::vector<std::string>& arguments, int timeout_seconds,
         return false;
     }
 
-    constexpr std::size_t kMaxResponseBytes = 65536;
     bool output_too_large = false;
     bool pipe_open = true;
     bool child_finished = false;
