@@ -9,6 +9,7 @@ inline constexpr const char* kAgentVersion = "0.1.0";
 
 inline std::string json_escape(std::string_view value) {
     std::string escaped;
+    escaped.reserve(value.size());
     for (const unsigned char character : value) {
         switch (character) {
             case '"': escaped += "\\\""; break;
