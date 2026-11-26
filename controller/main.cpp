@@ -168,17 +168,6 @@ bool run_ssh(const std::vector<std::string>& arguments, int timeout_seconds,
     output.clear();
     output.reserve(kMaxResponseBytes);
 
-    SECURITY_ATTRIBUTES security{sizeof(security), nullptr, TRUE};
-    HANDLE read_pipe = nullptr;
-    HANDLE write_pipe = nullptr;
-
-    if (!CreatePipe(&read_pipe, &write_pipe, &security, 0)) return false;
-    if (!SetHandleInformation(read_pipe, HANDLE_FLAG_INHERIT, 0)) {
-        CloseHandle(read_pipe);
-        CloseHandle(write_pipe);
-        return false;
-    }
-
     std::wstring command = L"ssh";
     for (const auto& argument : arguments) {
         const std::wstring wide_argument = utf8_to_wide(argument);
@@ -188,6 +177,17 @@ bool run_ssh(const std::vector<std::string>& arguments, int timeout_seconds,
             return false;
         }
         command += L" " + quote_windows_argument(wide_argument);
+    }
+
+    SECURITY_ATTRIBUTES security{sizeof(security), nullptr, TRUE};
+    HANDLE read_pipe = nullptr;
+    HANDLE write_pipe = nullptr;
+
+    if (!CreatePipe(&read_pipe, &write_pipe, &security, 0)) return false;
+    if (!SetHandleInformation(read_pipe, HANDLE_FLAG_INHERIT, 0)) {
+        CloseHandle(read_pipe);
+        CloseHandle(write_pipe);
+        return false;
     }
 
     STARTUPINFOW startup{};
@@ -264,12 +264,6 @@ bool run_ssh(const std::vector<std::string>& arguments, int timeout_seconds,
     output.clear();
     output.reserve(kMaxResponseBytes);
 
-    int pipe_fds[2];
-    if (pipe(pipe_fds) != 0) {
-        std::cerr << "Could not create SSH output pipe.\n";
-        return false;
-    }
-
     // Prepare argv before fork: only async-signal-safe work is done in the child.
     std::vector<char*> child_arguments;
     child_arguments.reserve(arguments.size() + 2);
@@ -278,6 +272,12 @@ bool run_ssh(const std::vector<std::string>& arguments, int timeout_seconds,
         child_arguments.push_back(const_cast<char*>(argument.c_str()));
     }
     child_arguments.push_back(nullptr);
+
+    int pipe_fds[2];
+    if (pipe(pipe_fds) != 0) {
+        std::cerr << "Could not create SSH output pipe.\n";
+        return false;
+    }
 
     const pid_t child = fork();
     if (child < 0) {
