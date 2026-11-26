@@ -67,7 +67,8 @@ The agent's `--system-info` operation also returns OS family, architecture, and 
 - Agent deployment, key provisioning, inventory, retries, and structured logs are not automated.
 - SSH server setup is operator-managed.
 - No CIS evaluation, privileged collection, remediation, or configuration writes are included.
-- The Windows process-launch implementation still requires a native Windows build and test-VM validation. Linux compilation and local agent smoke tests have been performed.
+- GitHub Actions has successfully configured, built, and run the agent smoke tests on native Windows, Linux, and macOS runners. This validates compilation and local agent behavior on all three platforms; a real SSH session to each target OS still requires separate VM testing.
+- The controller intentionally accepts only the agent's exact protocol-v1 ping JSON line on standard output. Avoid shell startup scripts that print banners or other text to standard output for the SSH account.
 
 ## Controller exit codes
 
