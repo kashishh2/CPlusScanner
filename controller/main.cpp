@@ -204,28 +204,37 @@ bool run_ssh(const std::vector<std::string>& arguments, int timeout_seconds,
 
     constexpr std::size_t kMaxResponseBytes = 65536;
     bool output_too_large = false;
-    std::thread reader([&]() {
-        char buffer[4096];
-        DWORD bytes_read = 0;
-        while (ReadFile(read_pipe, buffer, sizeof(buffer), &bytes_read, nullptr) &&
-               bytes_read > 0) {
-            if (output.size() + bytes_read <= kMaxResponseBytes) {
-                output.append(buffer, bytes_read);
-            } else {
-                output_too_large = true;
+    std::thread reader;
+    try {
+        reader = std::thread([&]() {
+            char buffer[4096];
+            DWORD bytes_read = 0;
+            while (ReadFile(read_pipe, buffer, sizeof(buffer), &bytes_read, nullptr) &&
+                   bytes_read > 0) {
+                if (bytes_read <= kMaxResponseBytes - output.size()) output.append(buffer, bytes_read);
+                else output_too_large = true;
             }
-        }
-    });
+        });
+    } catch (const std::exception& error) {
+        std::cerr << "Could not start SSH output reader: " << error.what() << "\n";
+        TerminateProcess(process.hProcess, 125);
+        WaitForSingleObject(process.hProcess, INFINITE);
+        CloseHandle(process.hThread);
+        CloseHandle(process.hProcess);
+        CloseHandle(read_pipe);
+        return false;
+    }
 
     const DWORD wait_result = WaitForSingleObject(
         process.hProcess, static_cast<DWORD>(timeout_seconds * 1000));
-    if (wait_result != WAIT_OBJECT_0) {
+    const DWORD wait_error = wait_result == WAIT_FAILED ? GetLastError() : ERROR_SUCCESS;
+    if (wait_result == WAIT_TIMEOUT || wait_result == WAIT_FAILED) {
         TerminateProcess(process.hProcess, 124);
         WaitForSingleObject(process.hProcess, INFINITE);
     }
 
     DWORD exit_code = 1;
-    GetExitCodeProcess(process.hProcess, &exit_code);
+    const BOOL got_exit_code = GetExitCodeProcess(process.hProcess, &exit_code);
     CloseHandle(process.hThread);
     CloseHandle(process.hProcess);
     reader.join();
@@ -235,7 +244,11 @@ bool run_ssh(const std::vector<std::string>& arguments, int timeout_seconds,
         std::cerr << "SSH timed out.\n";
         return false;
     }
-    return wait_result == WAIT_OBJECT_0 && exit_code == 0 && !output_too_large;
+    if (wait_result == WAIT_FAILED) {
+        std::cerr << "Could not wait for SSH process (Windows error " << wait_error << ").\n";
+        return false;
+    }
+    return wait_result == WAIT_OBJECT_0 && got_exit_code && exit_code == 0 && !output_too_large;
 }
 #else
 bool run_ssh(const std::vector<std::string>& arguments, int timeout_seconds,
@@ -285,6 +298,7 @@ bool run_ssh(const std::vector<std::string>& arguments, int timeout_seconds,
     bool output_too_large = false;
     bool pipe_open = true;
     bool child_finished = false;
+    bool timed_out = false;
     int child_status = 0;
     char buffer[4096];
     const auto deadline = std::chrono::steady_clock::now() +
@@ -292,7 +306,7 @@ bool run_ssh(const std::vector<std::string>& arguments, int timeout_seconds,
 
     while (pipe_open || !child_finished) {
         const auto now = std::chrono::steady_clock::now();
-        if (now >= deadline) break;
+        if (now >= deadline) { timed_out = true; break; }
 
         if (pipe_open) {
             const auto remaining =
@@ -339,7 +353,11 @@ bool run_ssh(const std::vector<std::string>& arguments, int timeout_seconds,
     if (!child_finished) {
         kill(child, SIGKILL);
         while (waitpid(child, &child_status, 0) < 0 && errno == EINTR) {}
-        std::cerr << "SSH operation timed out or the process could not be monitored.\n";
+        std::cerr << (timed_out ? "SSH operation timed out.\\n"
+                                : "Could not monitor SSH process; terminated it.\\n");
+    } else if (pipe_open) {
+        timed_out = true;
+        std::cerr << "SSH exited but its output pipe did not close before the deadline.\\n";
     }
 
     // Drain any bytes already buffered before closing the pipe.
@@ -361,8 +379,8 @@ bool run_ssh(const std::vector<std::string>& arguments, int timeout_seconds,
         std::cerr << "SSH response exceeded the 64 KiB safety limit.\n";
         return false;
     }
-    return child_finished && WIFEXITED(child_status) &&
-           WEXITSTATUS(child_status) == 0;
+    return child_finished && !timed_out && !pipe_open &&
+           WIFEXITED(child_status) && WEXITSTATUS(child_status) == 0;
 }
 #endif
 
@@ -458,6 +476,7 @@ std::string wide_to_utf8(const wchar_t* value) {
 } // namespace
 
 int wmain(int argc, wchar_t** argv) {
+    try {
     std::vector<std::string> utf8_arguments;
     std::vector<char*> argument_pointers;
     utf8_arguments.reserve(static_cast<std::size_t>(argc));
@@ -475,9 +494,30 @@ int wmain(int argc, wchar_t** argv) {
         argument_pointers.push_back(argument.data());
     }
     return run_controller(argc, argument_pointers.data());
+    } catch (const std::bad_alloc&) {
+        std::cerr << "Fatal error: insufficient memory.\\n";
+        return 70;
+    } catch (const std::exception& error) {
+        std::cerr << "Fatal controller error: " << error.what() << "\\n";
+        return 70;
+    } catch (...) {
+        std::cerr << "Fatal controller error: unknown exception.\\n";
+        return 70;
+    }
 }
 #else
 int main(int argc, char** argv) {
-    return run_controller(argc, argv);
+    try {
+        return run_controller(argc, argv);
+    } catch (const std::bad_alloc&) {
+        std::cerr << "Fatal error: insufficient memory.\\n";
+        return 70;
+    } catch (const std::exception& error) {
+        std::cerr << "Fatal controller error: " << error.what() << "\\n";
+        return 70;
+    } catch (...) {
+        std::cerr << "Fatal controller error: unknown exception.\\n";
+        return 70;
+    }
 }
 #endif
